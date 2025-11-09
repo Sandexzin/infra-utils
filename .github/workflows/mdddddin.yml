@@ -1,0 +1,88 @@
+# ============================================
+# 🖥️ RDP via Docker + AnyDesk AutoConnect
+# 𝔰𝔦𝔵⛧𝔱𝔢𝔞𝔪 edition 😈
+# ============================================
+
+name: RDP-AnyDesk
+
+on:
+  workflow_dispatch:
+
+env:
+  # ============================================
+  # 🔐 VARIÁVEIS DE AMBIENTE (.env interno)
+  # ============================================
+  WINDOWS_USERNAME: "Sixteam"
+  WINDOWS_PASSWORD: "six@123"
+  RAM_SIZE: "10G"
+  CPU_CORES: "4"
+  WINDOWS_VERSION: "10"
+  # ============================================
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+    - name: 🔹 Preparando ambiente
+      run: |
+        sudo apt update
+        sudo apt install -y docker.io curl wget unzip net-tools
+
+    - name: 🐳 Iniciando Windows (Dockurr)
+      run: |
+        echo "🚀 Iniciando container Windows..."
+        docker run -d --name windows \
+          --privileged \
+          --restart always \
+          --cap-add NET_ADMIN \
+          -e VERSION="${WINDOWS_VERSION}" \
+          -e USERNAME="${WINDOWS_USERNAME}" \
+          -e PASSWORD="${WINDOWS_PASSWORD}" \
+          -e RAM_SIZE="${RAM_SIZE}" \
+          -e CPU_CORES="${CPU_CORES}" \
+          -p 3389:3389 \
+          -p 8006:8006 \
+          -v /tmp/docker-data:/mnt/disco1 \
+          -v windows-data:/mnt/windows-data \
+          dockurr/windows
+
+    - name: ⏳ Aguardando inicialização do Windows
+      run: |
+        echo "⏳ Aguardando 2 minutos para inicialização..."
+        sleep 120
+
+    - name: 📦 Instalando e configurando AnyDesk
+      run: |
+        echo "📥 Baixando AnyDesk..."
+        docker exec windows powershell -Command "Invoke-WebRequest -Uri 'https://download.anydesk.com/AnyDesk.exe' -OutFile 'C:\\AnyDesk.exe'"
+        
+        echo "⚙️ Instalando AnyDesk silenciosamente..."
+        docker exec windows powershell -Command "Start-Process 'C:\\AnyDesk.exe' -ArgumentList '/install /silent' -Wait"
+        
+        echo "🔧 Ativando modo acesso automático..."
+        docker exec windows powershell -Command "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\AnyDesk' -Name 'ad.anynet.autostart' -Value 1"
+        docker exec windows powershell -Command "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\AnyDesk' -Name 'ad.security.accepted' -Value 1"
+        docker exec windows powershell -Command "Set-ItemProperty -Path 'HKLM:\\SOFTWARE\\AnyDesk' -Name 'ad.security.password' -Value (ConvertTo-SecureString '${WINDOWS_PASSWORD}' -AsPlainText -Force)"
+        docker exec windows powershell -Command "Restart-Service AnyDesk"
+        
+        echo "✅ AnyDesk instalado e configurado com aceitação automática."
+
+    - name: 🔍 Exibindo ID do AnyDesk
+      run: |
+        echo "🔎 Obtendo ID do AnyDesk..."
+        docker exec windows powershell -Command "Start-Sleep -Seconds 15; & 'C:\\Program Files (x86)\\AnyDesk\\AnyDesk.exe' --get-id" || echo "⚠️ Ainda inicializando, aguarde mais alguns segundos e recarregue os logs."
+
+    - name: 🧠 Informações de Conexão
+      run: |
+        echo ""
+        echo "======================================"
+        echo " 🖥️ CONEXÃO ANYDESK DISPONÍVEL "
+        echo "======================================"
+        echo "👤 Usuário: ${WINDOWS_USERNAME}"
+        echo "🔑 Senha:   ${WINDOWS_PASSWORD}"
+        echo "📡 ID: (ver acima ⬆️)"
+        echo "⚙️ Acesso automático ativado (sem precisar aceitar)."
+        echo "⚠️ Aguarde ~1–2 minutos após o log para o ID estar 100% ativo."
+        echo "======================================"
